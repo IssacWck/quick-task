@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="theme-color" content="#ffffff">
+    <title>快记</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%234A90D9' width='100' height='100' rx='20'/><text x='50' y='68' font-size='50' text-anchor='middle' fill='white'>✓</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            min-height: 100%;
+            padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 引导层 */
+        .onboarding {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.98);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+            text-align: center;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        .onboarding.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .onboarding-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+        }
+
+        .onboarding h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #1a1a1a;
+        }
+
+        .onboarding p {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .start-btn {
+            background: #4A90D9;
+            color: white;
+            border: none;
+            padding: 16px 48px;
+            font-size: 17px;
+            font-weight: 500;
+            border-radius: 12px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .start-btn:active {
+            background: #3a7bc8;
+            transform: scale(0.98);
+        }
+
+        /* 输入区域 */
+        .input-section {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .task-input {
+            width: 100%;
+            min-height: 80px;
+            max-height: 200px;
+            padding: 12px;
+            font-size: 16px;
+            line-height: 1.5;
+            border: 2px solid #e1e4e8;
+            border-radius: 8px;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: border-color 0.2s;
+        }
+
+        .task-input:focus {
+            border-color: #4A90D9;
+        }
+
+        .task-input::placeholder {
+            color: #aaa;
+        }
+
+        .char-count {
+            position: absolute;
+            right: 12px;
+            bottom: 8px;
+            font-size: 12px;
+            color: #aaa;
+            pointer-events: none;
+        }
+
+        .action-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+        }
+
+        .save-status {
+            font-size: 13px;
+            color: #999;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .save-status.saved {
+            color: #4CAF50;
+        }
+
+        .clear-btn {
+            background: transparent;
+            color: #999;
+            border: none;
+            padding: 8px 16px;
+            font-size: 15px;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .clear-btn:active {
+            color: #666;
+        }
+
+        /* 历史记录 */
+        .history-section {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            margin-bottom: 8px;
+        }
+
+        .history-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .history-count {
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .history-list {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+
+        .history-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            position: relative;
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-item .time {
+            font-size: 11px;
+            color: #aaa;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .history-item .content {
+            font-size: 15px;
+            color: #333;
+            line-height: 1.4;
+            word-break: break-word;
+            flex: 1;
+        }
+
+        .history-item .delete-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #ff4444;
+            color: white;
+            border: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .history-item:active .delete-btn {
+            opacity: 1;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            color: #aaa;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .empty-state p {
+            font-size: 15px;
+        }
+
+        /* 统计面板 */
+        .stats-panel {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e1e4e8;
+            padding: 12px 16px;
+            transform: translateY(100%);
+            transition: transform 0.3s;
+            z-index: 100;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        .stats-panel.open {
+            transform: translateY(0);
+        }
+
+        .stats-toggle {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background: #4A90D9;
+            color: white;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(74, 144, 217, 0.3);
+            z-index: 101;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .stats-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .stats-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .stats-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+        }
+
+        .stats-content {
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .stats-metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .stats-metric:last-child {
+            border-bottom: none;
+        }
+
+        .stats-label {
+            color: #666;
+        }
+
+        .stats-value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .stats-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .stats-btn {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .stats-btn.primary {
+            background: #4A90D9;
+            color: white;
+        }
+
+        .stats-btn.secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        /* 动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .history-item {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* 隐藏滚动条但保持功能 */
+        .history-section::-webkit-scrollbar {
+            display: none;
+        }
+        .history-section {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 引导层 -->
+    <div class="onboarding" id="onboarding">
+        <div class="onboarding-icon">📝</div>
+        <h1>快记</h1>
+        <p>打开即输入<br>输完即保存<br>用完即走</p>
+        <button class="start-btn" id="startBtn">开始记录</button>
+    </div>
+
+    <!-- 主界面 -->
+    <div class="container">
+        <section class="input-section">
+            <div class="input-wrapper">
+                <textarea 
+                    class="task-input" 
+                    id="taskInput" 
+                    placeholder="记录一件事..."
+                    maxlength="500"
+                ></textarea>
+                <span class="char-count" id="charCount">0/500</span>
+            </div>
+            <div class="action-bar">
+                <span class="save-status" id="saveStatus">
+                    <span id="saveIcon"></span>
+                    <span id="saveText">输入即保存</span>
+                </span>
+                <button class="clear-btn" id="clearBtn">清空</button>
+            </div>
+        </section>
+
+        <section class="history-section">
+            <div class="history-header">
+                <span class="history-title">历史记录</span>
+                <span class="history-count" id="historyCount">0 条</span>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <p>还没有记录<br>输入第一条吧</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 统计面板 -->
+    <button class="stats-toggle" id="statsToggle">📊</button>
+    <div class="stats-panel" id="statsPanel">
+        <div class="stats-header">
+            <h3>使用统计</h3>
+            <button class="stats-close" id="statsClose">×</button>
+        </div>
+        <div class="stats-content" id="statsContent">
+            <!-- 动态填充 -->
+        </div>
+        <div class="stats-actions">
+            <button class="stats-btn secondary" id="exportStats">导出数据</button>
+            <button class="stats-btn secondary" id="clearStats">清除统计</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== 访问统计模块 ==========
+        const STATS_KEY = 'quick_task_stats';
+        const SESSION_KEY = 'quick_task_session';
+        
+        const Analytics = {
+            // 初始化会话
+            initSession() {
+                const session = {
+                    id: Date.now().toString(36) + Math.random().toString(36).substr(2),
+                    startTime: Date.now(),
+                    firstInputTime: null,
+                    firstInputDelay: null, // 从打开到首次输入的延迟
+                    tasksCreated: 0,
+                    platform: navigator.platform,
+                    userAgent: navigator.userAgent,
+                    screenWidth: window.screen.width,
+                    screenHeight: window.screen.height,
+                    isPWA: window.matchMedia('(display-mode: standalone)').matches
+                };
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+                return session;
+            },
+            
+            // 获取当前会话
+            getSession() {
+                const data = sessionStorage.getItem(SESSION_KEY);
+                return data ? JSON.parse(data) : this.initSession();
+            },
+            
+            // 更新会话
+            updateSession(updates) {
+                const session = this.getSession();
+                Object.assign(session, updates);
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            },
+            
+            // 记录首次输入
+            recordFirstInput() {
+                const session = this.getSession();
+                if (!session.firstInputTime) {
+                    session.firstInputTime = Date.now();
+                    session.firstInputDelay = session.firstInputTime - session.startTime;
+                    this.updateSession(session);
+                    this.saveEvent('first_input', {
+                        delay: session.firstInputDelay,
+                        platform: session.platform,
+                        isPWA: session.isPWA
+                    });
+                }
+            },
+            
+            // 记录任务创建
+            recordTaskCreated(contentLength) {
+                const session = this.getSession();
+                session.tasksCreated++;
+                this.updateSession(session);
+                this.saveEvent('task_created', {
+                    contentLength,
+                    tasksInSession: session.tasksCreated
+                });
+            },
+            
+            // 记录页面访问
+            recordPageView() {
+                const session = this.getSession();
+                this.saveEvent('page_view', {
+                    isPWA: session.isPWA,
+                    platform: session.platform,
+                    screenWidth: session.screenWidth
+                });
+            },
+            
+            // 保存事件到本地存储
+            saveEvent(type, data) {
+                try {
+                    const stats = this.getStats();
+                    stats.events.push({
+                        type,
+                        timestamp: Date.now(),
+                        sessionId: this.getSession().id,
+                        data
+                    });
+                    // 限制事件数量
+                    if (stats.events.length > 1000) {
+                        stats.events = stats.events.slice(-1000);
+                    }
+                    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+                } catch (e) {
+                    console.warn('保存统计失败:', e);
+                }
+            },
+            
+            // 获取统计数据
+            getStats() {
+                try {
+                    const data = localStorage.getItem(STATS_KEY);
+                    return data ? JSON.parse(data) : { events: [] };
+                } catch (e) {
+                    return { events: [] };
+                }
+            },
+            
+            // 计算统计摘要
+            getSummary() {
+                const stats = this.getStats();
+                const session = this.getSession();
+                
+                const pageViews = stats.events.filter(e => e.type === 'page_view');
+                const taskCreations = stats.events.filter(e => e.type === 'task_created');
+                const firstInputs = stats.events.filter(e => e.type === 'first_input');
+                
+                // 计算平均首次输入延迟
+                const avgFirstInputDelay = firstInputs.length > 0
+                    ? Math.round(firstInputs.reduce((sum, e) => sum + e.data.delay, 0) / firstInputs.length)
+                    : null;
+                
+                // 计算每个会话平均创建任务数
+                const sessionTaskCounts = {};
+                taskCreations.forEach(e => {
+                    sessionTaskCounts[e.sessionId] = (sessionTaskCounts[e.sessionId] || 0) + 1;
+                });
+                const avgTasksPerSession = Object.keys(sessionTaskCounts).length > 0
+                    ? (taskCreations.length / Object.keys(sessionTaskCounts).length).toFixed(1)
+                    : 0;
+                
+                // PWA 使用情况
+                const pwaUsage = pageViews.filter(e => e.data.isPWA).length;
+                
+                return {
+                    totalPageViews: pageViews.length,
+                    totalTasksCreated: taskCreations.length,
+                    avgFirstInputDelay,
+                    avgTasksPerSession,
+                    pwaUsageCount: pwaUsage,
+                    pwaUsagePercent: pageViews.length > 0 
+                        ? Math.round(pwaUsage / pageViews.length * 100) 
+                        : 0,
+                    currentSession: session
+                };
+            },
+            
+            // 导出数据
+            exportData() {
+                const stats = this.getStats();
+                const summary = this.getSummary();
+                const exportData = {
+                    exportedAt: new Date().toISOString(),
+                    summary,
+                    events: stats.events
+                };
+                return JSON.stringify(exportData, null, 2);
+            },
+            
+            // 清除统计
+            clearStats() {
+                localStorage.removeItem(STATS_KEY);
+                sessionStorage.removeItem(SESSION_KEY);
+                this.initSession();
+            }
+        };
+
+        // ========== 数据管理 ==========
+        const STORAGE_KEY = 'quick_tasks';
+        const ONBOARDING_KEY = 'quick_tasks_onboarded';
+
+        function getTasks() {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                return data ? JSON.parse(data) : [];
+            } catch (e) {
+                console.warn('读取数据失败:', e);
+                return [];
+            }
+        }
+
+        function saveTasks(tasks) {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+                return true;
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    alert('存储空间已满，请清理历史记录');
+                } else {
+                    console.warn('保存失败:', e);
+                }
+                return false;
+            }
+        }
+
+        function addTask(content) {
+            if (!content.trim()) return null;
+            
+            const task = {
+                id: Date.now(),
+                content: content.trim(),
+                createdAt: new Date().toISOString()
+            };
+            
+            const tasks = getTasks();
+            tasks.unshift(task); // 新任务在前
+            
+            // 限制最多保存 500 条
+            if (tasks.length > 500) {
+                tasks.length = 500;
+            }
+            
+            if (saveTasks(tasks)) {
+                Analytics.recordTaskCreated(content.length);
+                return task;
+            }
+            return null;
+        }
+
+        function deleteTask(id) {
+            const tasks = getTasks();
+            const index = tasks.findIndex(t => t.id === id);
+            if (index > -1) {
+                tasks.splice(index, 1);
+                saveTasks(tasks);
+                return true;
+            }
+            return false;
+        }
+
+        // ========== UI 渲染 ==========
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            
+            // 今天
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+            
+            // 昨天
+            const yesterday = new Date(now);
+            yesterday.setDate(yesterday.getDate() - 1);
+            if (date.toDateString() === yesterday.toDateString()) {
+                return '昨天 ' + date.toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+            
+            // 其他
+            return date.toLocaleDateString('zh-CN', { 
+                month: 'numeric', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function renderHistory() {
+            const tasks = getTasks();
+            const list = document.getElementById('historyList');
+            const count = document.getElementById('historyCount');
+            
+            count.textContent = tasks.length + ' 条';
+            
+            if (tasks.length === 0) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <p>还没有记录<br>输入第一条吧</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            list.innerHTML = tasks.map(task => `
+                <div class="history-item" data-id="${task.id}">
+                    <span class="time">${formatTime(task.createdAt)}</span>
+                    <span class="content">${escapeHtml(task.content)}</span>
+                    <button class="delete-btn" onclick="handleDelete(${task.id})">×</button>
+                </div>
+            `).join('');
+        }
+
+        // ========== 统计面板 ==========
+        function renderStats() {
+            const summary = Analytics.getSummary();
+            const content = document.getElementById('statsContent');
+            
+            content.innerHTML = `
+                <div class="stats-metric">
+                    <span class="stats-label">总访问次数</span>
+                    <span class="stats-value">${summary.totalPageViews}</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">总记录条数</span>
+                    <span class="stats-value">${summary.totalTasksCreated}</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">平均首次输入延迟</span>
+                    <span class="stats-value">${summary.avgFirstInputDelay !== null ? summary.avgFirstInputDelay + 'ms' : '-'}</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">平均每会话记录数</span>
+                    <span class="stats-value">${summary.avgTasksPerSession}</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">PWA 启动次数</span>
+                    <span class="stats-value">${summary.pwaUsageCount} (${summary.pwaUsagePercent}%)</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">当前会话记录数</span>
+                    <span class="stats-value">${summary.currentSession.tasksCreated}</span>
+                </div>
+                <div class="stats-metric">
+                    <span class="stats-label">当前平台</span>
+                    <span class="stats-value">${summary.currentSession.platform}</span>
+                </div>
+            `;
+        }
+
+        function toggleStatsPanel() {
+            const panel = document.getElementById('statsPanel');
+            const toggle = document.getElementById('statsToggle');
+            panel.classList.toggle('open');
+            if (panel.classList.contains('open')) {
+                renderStats();
+            }
+        }
+
+        function exportStatsData() {
+            const data = Analytics.exportData();
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quick-task-stats-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ========== 事件处理 ==========
+        let saveTimeout = null;
+        let currentContent = '';
+
+        function handleDelete(id) {
+            if (confirm('删除这条记录？')) {
+                deleteTask(id);
+                renderHistory();
+            }
+        }
+
+        function showSaveStatus(saved) {
+            const status = document.getElementById('saveStatus');
+            const icon = document.getElementById('saveIcon');
+            const text = document.getElementById('saveText');
+            
+            if (saved) {
+                status.classList.add('saved');
+                icon.textContent = '✓';
+                text.textContent = '已保存';
+                
+                setTimeout(() => {
+                    status.classList.remove('saved');
+                    icon.textContent = '';
+                    text.textContent = '输入即保存';
+                }, 2000);
+            }
+        }
+
+        function autoSave() {
+            const input = document.getElementById('taskInput');
+            const content = input.value;
+            
+            // 更新字数
+            document.getElementById('charCount').textContent = 
+                content.length + '/500';
+            
+            // 内容有变化才处理
+            if (content === currentContent) return;
+            
+            // 首次输入
+            if (content && !currentContent) {
+                Analytics.recordFirstInput();
+            }
+            
+            // 之前有内容，现在清空了 → 保存之前的
+            if (currentContent && !content) {
+                const task = addTask(currentContent);
+                if (task) {
+                    showSaveStatus(true);
+                    renderHistory();
+                }
+            }
+            // 输入停顿超过 2 秒且内容非空 → 自动保存
+            else if (content) {
+                clearTimeout(saveTimeout);
+                saveTimeout = setTimeout(() => {
+                    if (input.value && input.value !== currentContent) {
+                        const task = addTask(input.value);
+                        if (task) {
+                            showSaveStatus(true);
+                            renderHistory();
+                            // 清空输入框
+                            input.value = '';
+                            document.getElementById('charCount').textContent = '0/500';
+                        }
+                    }
+                }, 2000);
+            }
+            
+            currentContent = content;
+        }
+
+        function handleClear() {
+            const input = document.getElementById('taskInput');
+            if (input.value && confirm('清空当前输入？')) {
+                input.value = '';
+                currentContent = '';
+                document.getElementById('charCount').textContent = '0/500';
+            }
+        }
+
+        // ========== 初始化 ==========
+        function init() {
+            const input = document.getElementById('taskInput');
+            const clearBtn = document.getElementById('clearBtn');
+            const onboarding = document.getElementById('onboarding');
+            const startBtn = document.getElementById('startBtn');
+            const statsToggle = document.getElementById('statsToggle');
+            const statsClose = document.getElementById('statsClose');
+            const exportStats = document.getElementById('exportStats');
+            const clearStats = document.getElementById('clearStats');
+            
+            // 初始化统计
+            Analytics.initSession();
+            Analytics.recordPageView();
+            
+            // 检查是否需要显示引导
+            const hasOnboarded = localStorage.getItem(ONBOARDING_KEY);
+            
+            if (hasOnboarded) {
+                onboarding.classList.add('hidden');
+                // 自动聚焦输入框
+                setTimeout(() => input.focus(), 100);
+            } else {
+                // 点击开始按钮
+                startBtn.addEventListener('click', () => {
+                    localStorage.setItem(ONBOARDING_KEY, 'true');
+                    onboarding.classList.add('hidden');
+                    setTimeout(() => input.focus(), 300);
+                });
+            }
+            
+            // 监听输入
+            input.addEventListener('input', autoSave);
+            
+            // 清空按钮
+            clearBtn.addEventListener('click', handleClear);
+            
+            // 监听页面可见性变化（切换走时保存）
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden && input.value) {
+                    const task = addTask(input.value);
+                    if (task) {
+                        renderHistory();
+                    }
+                }
+            });
+            
+            // 监听 beforeunload
+            window.addEventListener('beforeunload', () => {
+                if (input.value) {
+                    addTask(input.value);
+                }
+            });
+            
+            // 渲染历史
+            renderHistory();
+            
+            // 统计面板
+            statsToggle.addEventListener('click', toggleStatsPanel);
+            statsClose.addEventListener('click', toggleStatsPanel);
+            exportStats.addEventListener('click', exportStatsData);
+            clearStats.addEventListener('click', () => {
+                if (confirm('确定要清除所有统计数据吗？\n（不会影响已记录的任务）')) {
+                    Analytics.clearStats();
+                    renderStats();
+                }
+            });
+            
+            // 注册 service worker
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then(() => console.log('SW registered'))
+                    .catch(err => console.log('SW registration failed:', err));
+            }
+        }
+
+        // DOM ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
